@@ -1,5 +1,9 @@
 # Pulsar Edit MCP Server & LLM Coding Assistant
 
+this is a fork of: https://github.com/drunnells/pulsar-edit-mcp-server
+I'm trying to refactor this idea using my personal knowledges and a consistent part of AI analisys on code
+
+
 | :warning: WARNING          |
 |:---------------------------|
 | Very experimental and incomplete. Use at your own risk!         |
@@ -16,7 +20,7 @@ This is an *early* attempt at making an MCP server and chat assistant to control
 
 ## Installation:
 ```sh
-ppm install https://github.com/drunnells/pulsar-edit-mcp-server
+ppm install https://github.com/coppolaf/pulsar-edit-mcp-server
 ```
 
 After the Pulsar package is installed, set the MCP server to lisen in **Packages**->**MCP Server**->**Listen**
