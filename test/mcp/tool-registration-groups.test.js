@@ -50,6 +50,9 @@ test('read, navigation and write tool groups register the expected tools', () =>
     'delete-line-range',
     'undo',
     'redo',
+    'get-pending-proposals',
+    'get-proposal',
+    'get-write-policy',
     'apply-proposal'
   ]);
 });

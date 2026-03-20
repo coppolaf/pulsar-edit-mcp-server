@@ -21,7 +21,8 @@ function createBuffer(text) {
     },
     insert(position, insertedText) {
       const row = position[0];
-      state.lines.splice(row, 0, insertedText.replace(/\n$/, ''));
+      const insertedLines = insertedText.replace(/\n$/, '').split('\n');
+      state.lines.splice(row, 0, ...insertedLines);
       state.text = state.lines.join('\n');
     },
     deleteRow(row) {
@@ -37,6 +38,9 @@ test('document-write-service centralizes replace-text mutations and diff highlig
   const editor = {
     getBuffer() {
       return buffer;
+    },
+    getPath() {
+      return '/workspace/example.txt';
     }
   };
   const service = createDocumentWriteService({
@@ -67,12 +71,15 @@ test('document-write-service centralizes replace-text mutations and diff highlig
   assert.equal(events[0].after, 'omega\nbeta\nomega');
 });
 
-test('document-write-service can stage a proposal and apply it later', () => {
+test('document-write-service can stage a proposal, expose preview metadata and apply it later', () => {
   const events = [];
   const buffer = createBuffer('alpha\nbeta\nalpha');
   const editor = {
     getBuffer() {
       return buffer;
+    },
+    getPath() {
+      return '/workspace/example.txt';
     }
   };
   const service = createDocumentWriteService({
@@ -98,8 +105,12 @@ test('document-write-service can stage a proposal and apply it later', () => {
   assert.equal(proposalResult.changed, false);
   assert.equal(proposalResult.mode, WRITE_EXECUTION_MODES.PROPOSE);
   assert.equal(proposalResult.proposal.id, 'proposal-1');
+  assert.equal(proposalResult.proposal.document.fullPath, '/workspace/example.txt');
+  assert.equal(proposalResult.proposal.preview.afterText, 'omega\nbeta\nomega');
+  assert.equal(proposalResult.proposal.preview.diff.changedSegmentCount, 4);
   assert.equal(buffer.getText(), 'alpha\nbeta\nalpha');
   assert.equal(service.listPendingProposals().length, 1);
+  assert.equal(service.getProposal({ proposalId: 'proposal-1' }).id, 'proposal-1');
 
   const applyResult = service.applyProposal({ proposalId: 'proposal-1' });
   assert.equal(applyResult.changed, true);
@@ -114,6 +125,9 @@ test('document-write-service rejects stale proposals when buffer changed', () =>
   const editor = {
     getBuffer() {
       return buffer;
+    },
+    getPath() {
+      return '/workspace/example.txt';
     }
   };
   const service = createDocumentWriteService({
@@ -141,6 +155,9 @@ test('document-write-service centralizes single-line insert/delete operations', 
   const editor = {
     getBuffer() {
       return buffer;
+    },
+    getPath() {
+      return '/workspace/example.txt';
     },
     setCursorBufferPosition(position) {
       events.push({ type: 'cursor', position });
@@ -175,4 +192,33 @@ test('document-write-service centralizes single-line insert/delete operations', 
     { row: 0, kind: 'added' },
     { row: 1, kind: 'removed' }
   ]);
+});
+
+test('document-write-service exposes explicit operation policy and rejects proposing undo', () => {
+  const buffer = createBuffer('one\ntwo');
+  const editor = {
+    getBuffer() {
+      return buffer;
+    },
+    getPath() {
+      return '/workspace/example.txt';
+    },
+    undo() {},
+    redo() {}
+  };
+
+  const service = createDocumentWriteService({
+    diffHighlighter: {
+      decorateEditedLines() {},
+      decorateLine() {}
+    },
+    getEditor() {
+      return editor;
+    }
+  });
+
+  const policy = service.getWritePolicySummary();
+  assert.equal(policy.supportsProposalWorkflow['replace-text'], true);
+  assert.equal(policy.supportsProposalWorkflow.undo, false);
+  assert.throws(() => service.undo({}, { executionMode: WRITE_EXECUTION_MODES.PROPOSE }), /does not support executionMode=propose/);
 });

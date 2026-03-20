@@ -47,10 +47,11 @@ test('project-file-service excludes common heavy directories and hidden files by
 
   const result = await service.listProjectFiles();
   assert.deepEqual(result.files, [
-    '/workspace/src/index.js',
-    '/workspace/README.md'
+    '/workspace/README.md',
+    '/workspace/src/index.js'
   ]);
   assert.equal(result.truncated, false);
+  assert.deepEqual(result.warnings, []);
 });
 
 test('project-file-service truncates traversal at maxFiles', async () => {
@@ -79,4 +80,28 @@ test('project-file-service truncates traversal at maxFiles', async () => {
   const result = await service.listProjectFiles({ maxFiles: 2 });
   assert.deepEqual(result.files, ['/workspace/a.js', '/workspace/b.js']);
   assert.equal(result.truncated, true);
+});
+
+test('project-file-service collects non-fatal warnings for unreadable directories', async () => {
+  const service = createProjectFileService({
+    getRoots() {
+      return ['/workspace'];
+    },
+    async readdir(dir) {
+      if (dir === '/workspace') {
+        return [createDirent('src', 'dir')];
+      }
+      throw new Error('EACCES');
+    },
+    pathModule: {
+      join(...parts) {
+        return parts.join('/');
+      }
+    }
+  });
+
+  const result = await service.listProjectFiles();
+  assert.deepEqual(result.files, []);
+  assert.equal(result.warnings.length, 1);
+  assert.equal(result.warnings[0].directory, '/workspace/src');
 });
