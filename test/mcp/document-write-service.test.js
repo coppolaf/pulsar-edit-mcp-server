@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDocumentWriteService } from '../../lib/mcp/tools/document-write-service.js';
+import { createDocumentWriteService, WRITE_EXECUTION_MODES } from '../../lib/mcp/tools/document-write-service.js';
 
 function createBuffer(text) {
   const state = {
@@ -60,10 +60,79 @@ test('document-write-service centralizes replace-text mutations and diff highlig
 
   assert.equal(result.changed, true);
   assert.equal(result.matchCount, 2);
+  assert.equal(result.mode, WRITE_EXECUTION_MODES.APPLY);
   assert.equal(buffer.getText(), 'omega\nbeta\nomega');
   assert.equal(events.length, 1);
   assert.equal(events[0].before, 'alpha\nbeta\nalpha');
   assert.equal(events[0].after, 'omega\nbeta\nomega');
+});
+
+test('document-write-service can stage a proposal and apply it later', () => {
+  const events = [];
+  const buffer = createBuffer('alpha\nbeta\nalpha');
+  const editor = {
+    getBuffer() {
+      return buffer;
+    }
+  };
+  const service = createDocumentWriteService({
+    diffHighlighter: {
+      decorateEditedLines(editorArg, before, after) {
+        events.push({ type: 'decorateEditedLines', editor: editorArg, before, after });
+      },
+      decorateLine() {}
+    },
+    getEditor() {
+      return editor;
+    },
+    createProposalId() {
+      return 'proposal-1';
+    }
+  });
+
+  const proposalResult = service.replaceText(
+    { query: 'alpha', replacement: 'omega', all: true },
+    { executionMode: WRITE_EXECUTION_MODES.PROPOSE }
+  );
+
+  assert.equal(proposalResult.changed, false);
+  assert.equal(proposalResult.mode, WRITE_EXECUTION_MODES.PROPOSE);
+  assert.equal(proposalResult.proposal.id, 'proposal-1');
+  assert.equal(buffer.getText(), 'alpha\nbeta\nalpha');
+  assert.equal(service.listPendingProposals().length, 1);
+
+  const applyResult = service.applyProposal({ proposalId: 'proposal-1' });
+  assert.equal(applyResult.changed, true);
+  assert.equal(applyResult.proposalId, 'proposal-1');
+  assert.equal(buffer.getText(), 'omega\nbeta\nomega');
+  assert.equal(service.listPendingProposals().length, 0);
+  assert.equal(events.length, 1);
+});
+
+test('document-write-service rejects stale proposals when buffer changed', () => {
+  const buffer = createBuffer('alpha\nbeta');
+  const editor = {
+    getBuffer() {
+      return buffer;
+    }
+  };
+  const service = createDocumentWriteService({
+    diffHighlighter: {
+      decorateEditedLines() {},
+      decorateLine() {}
+    },
+    getEditor() {
+      return editor;
+    },
+    createProposalId() {
+      return 'proposal-stale';
+    }
+  });
+
+  service.replaceDocument({ text: 'omega\nbeta' }, { executionMode: WRITE_EXECUTION_MODES.PROPOSE });
+  buffer.setTextViaDiff('manually changed');
+
+  assert.throws(() => service.applyProposal({ proposalId: 'proposal-stale' }), /document changed since proposal creation/);
 });
 
 test('document-write-service centralizes single-line insert/delete operations', () => {

@@ -49,6 +49,7 @@ test('read, navigation and write tool groups register the expected tools', () =>
     'delete-line',
     'delete-line-range',
     'undo',
-    'redo'
+    'redo',
+    'apply-proposal'
   ]);
 });
