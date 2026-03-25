@@ -17,6 +17,41 @@ function createDirent(name, type) {
   };
 }
 
+function createPathModule() {
+  return {
+    sep: '/',
+    join(...parts) {
+      return parts.join('/').replace(/\/+/g, '/');
+    },
+    resolve(...parts) {
+      return parts.join('/').replace(/\/+/g, '/').replace('//', '/');
+    },
+    relative(from, to) {
+      const normalize = (value) => value.replace(/\/+/g, '/').replace(/\/$/, '');
+      from = normalize(from);
+      to = normalize(to);
+      if (from === to) {
+        return '';
+      }
+      if (to.startsWith(`${from}/`)) {
+        return to.slice(from.length + 1);
+      }
+      return `../${to}`;
+    },
+    isAbsolute(value) {
+      return value.startsWith('/');
+    },
+    basename(value) {
+      return value.split('/').filter(Boolean).pop() || '';
+    },
+    normalize(value) {
+      return value.replace(/\/+/g, '/');
+    }
+  };
+}
+
+const pathModule = createPathModule();
+
 test('project-file-service excludes common heavy directories and hidden files by default', async () => {
   const tree = new Map([
     ['/workspace', [
@@ -38,11 +73,7 @@ test('project-file-service excludes common heavy directories and hidden files by
     async readdir(dir) {
       return tree.get(dir) || [];
     },
-    pathModule: {
-      join(...parts) {
-        return parts.join('/').replace(/\/+/g, '/');
-      }
-    }
+    pathModule
   });
 
   const result = await service.listProjectFiles();
@@ -70,11 +101,7 @@ test('project-file-service truncates traversal at maxFiles', async () => {
     async readdir(dir) {
       return tree.get(dir) || [];
     },
-    pathModule: {
-      join(...parts) {
-        return parts.join('/');
-      }
-    }
+    pathModule
   });
 
   const result = await service.listProjectFiles({ maxFiles: 2 });
@@ -93,15 +120,98 @@ test('project-file-service collects non-fatal warnings for unreadable directorie
       }
       throw new Error('EACCES');
     },
-    pathModule: {
-      join(...parts) {
-        return parts.join('/');
-      }
-    }
+    pathModule
   });
 
   const result = await service.listProjectFiles();
   assert.deepEqual(result.files, []);
   assert.equal(result.warnings.length, 1);
   assert.equal(result.warnings[0].directory, '/workspace/src');
+});
+
+test('project-file-service scopes traversal to the requested project root in a multi-root workspace', async () => {
+  const tree = new Map([
+    ['/workspace/alpha', [createDirent('alpha.txt', 'file')]],
+    ['/workspace/beta', [createDirent('README.md', 'file')]]
+  ]);
+
+  const service = createProjectFileService({
+    getRoots() {
+      return ['/workspace/alpha', '/workspace/beta'];
+    },
+    async readdir(dir) {
+      return tree.get(dir) || [];
+    },
+    pathModule
+  });
+
+  const result = await service.listProjectFiles({ projectName: 'beta' });
+  assert.deepEqual(result.files, ['/workspace/beta/README.md']);
+  assert.equal(result.resolvedRoot.rootPath, '/workspace/beta');
+  assert.equal(result.roots.length, 1);
+});
+
+test('project-file-service exposes workspace roots with active root metadata', () => {
+  const service = createProjectFileService({
+    getRoots() {
+      return ['/workspace/alpha', '/workspace/beta'];
+    },
+    getActiveFilePath() {
+      return '/workspace/beta/README.md';
+    },
+    pathModule
+  });
+
+  const result = service.listWorkspaceRoots();
+  assert.deepEqual(result, [
+    { name: 'alpha', path: '/workspace/alpha', isActive: false },
+    { name: 'beta', path: '/workspace/beta', isActive: true }
+  ]);
+});
+
+test('project-file-service resolves basename opens within the requested project root', async () => {
+  const tree = new Map([
+    ['/workspace/alpha', [createDirent('README.md', 'file')]],
+    ['/workspace/beta', [createDirent('README.md', 'file')]]
+  ]);
+
+  const service = createProjectFileService({
+    getRoots() {
+      return ['/workspace/alpha', '/workspace/beta'];
+    },
+    async readdir(dir) {
+      return tree.get(dir) || [];
+    },
+    async stat(filePath) {
+      if (filePath === '/workspace/alpha/README.md' || filePath === '/workspace/beta/README.md') {
+        return { isFile() { return true; } };
+      }
+      throw new Error('ENOENT');
+    },
+    pathModule
+  });
+
+  const result = await service.resolveFileForOpen({ filePath: 'README.md', projectName: 'beta' });
+  assert.equal(result.resolvedPath, '/workspace/beta/README.md');
+  assert.equal(result.resolutionStrategy, 'basename-exact');
+});
+
+test('project-file-service rejects ambiguous basename opens across workspace roots', async () => {
+  const service = createProjectFileService({
+    getRoots() {
+      return ['/workspace/alpha', '/workspace/beta'];
+    },
+    async stat(filePath) {
+      if (filePath === '/workspace/alpha/README.md' || filePath === '/workspace/beta/README.md') {
+        return { isFile() { return true; } };
+      }
+      throw new Error('ENOENT');
+    },
+    pathModule
+  });
+
+  await assert.rejects(
+    service.resolveFileForOpen({ filePath: 'README.md' }),
+    /ambiguous/
+  );
 });

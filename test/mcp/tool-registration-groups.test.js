@@ -30,6 +30,7 @@ test('read, navigation and write tool groups register the expected tools', () =>
   const navigationServer = createFakeServer();
   registerNavigationTools(navigationServer);
   assert.deepEqual(navigationServer.names, [
+    'get-workspace-roots',
     'get-project-files',
     'open-file'
   ]);
