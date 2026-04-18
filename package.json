@@ -59,54 +59,6 @@
       "title": "API Key",
       "description": "The API key for authenticating requests when using the built-in chat",
       "order": 3
-    },
-    "providerTimeoutMs": {
-      "type": "integer",
-      "default": 30000,
-      "minimum": 0,
-      "title": "Chat Provider Timeout (ms)",
-      "description": "Abort built-in chat requests that take longer than this timeout. Set to 0 to disable request timeout.",
-      "order": 4
-    },
-    "chatMaxRetries": {
-      "type": "integer",
-      "default": 2,
-      "minimum": 0,
-      "title": "Chat Retry Attempts",
-      "description": "Retry built-in chat requests this many times for retryable failures such as 429, 408 or 5xx responses.",
-      "order": 5
-    },
-    "chatRetryBaseDelayMs": {
-      "type": "integer",
-      "default": 750,
-      "minimum": 0,
-      "title": "Chat Retry Base Delay (ms)",
-      "description": "Base backoff used by built-in chat retries when the provider does not return Retry-After.",
-      "order": 6
-    },
-    "chatRequestMinGapMs": {
-      "type": "integer",
-      "default": 600,
-      "minimum": 0,
-      "title": "Chat Request Min Gap (ms)",
-      "description": "Minimum gap inserted between consecutive built-in chat completion calls to reduce provider saturation during proposal/apply loops.",
-      "order": 7
-    },
-    "chatContextMessageLimit": {
-      "type": "integer",
-      "default": 12,
-      "minimum": 2,
-      "title": "Chat Context Message Limit",
-      "description": "Maximum number of recent conversation messages sent to the built-in chat provider, always preserving the system prompt.",
-      "order": 8
-    },
-    "chatToolContentCharLimit": {
-      "type": "integer",
-      "default": 2000,
-      "minimum": 0,
-      "title": "Chat Tool Content Char Limit",
-      "description": "Maximum number of characters kept for each tool result in built-in chat requests; larger payloads are truncated before sending to the provider.",
-      "order": 9
     }
   }
 }
