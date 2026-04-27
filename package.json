@@ -1,7 +1,7 @@
 {
   "name": "pulsar-edit-mcp-server",
   "main": "./lib/pulsar-edit-mcp-server",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "type": "module",
   "description": "This is a Pulsar Editor MCP",
   "keywords": [],
@@ -59,6 +59,48 @@
       "title": "API Key",
       "description": "The API key for authenticating requests when using the built-in chat",
       "order": 3
+    },
+    "providerTimeoutMs": {
+      "type": "integer",
+      "default": 30000,
+      "title": "Provider Timeout (ms)",
+      "description": "Timeout for built-in chat requests to the OpenAI-compatible provider before surfacing a retryable timeout error.",
+      "order": 4
+    },
+    "chatMaxRetries": {
+      "type": "integer",
+      "default": 2,
+      "title": "Chat Max Retries",
+      "description": "Maximum number of automatic retries for retryable built-in chat failures such as 429, timeout or transient 5xx/network errors.",
+      "order": 5
+    },
+    "chatRetryBaseDelayMs": {
+      "type": "integer",
+      "default": 750,
+      "title": "Chat Retry Base Delay (ms)",
+      "description": "Base delay used for exponential backoff in the built-in chat after retryable provider errors.",
+      "order": 6
+    },
+    "chatRequestMinGapMs": {
+      "type": "integer",
+      "default": 600,
+      "title": "Chat Request Minimum Gap (ms)",
+      "description": "Minimum enforced gap between consecutive built-in chat completion requests to reduce provider saturation during proposal/apply sequences.",
+      "order": 7
+    },
+    "chatContextMessageLimit": {
+      "type": "integer",
+      "default": 12,
+      "title": "Chat Context User-Turn Limit",
+      "description": "Maximum number of recent user turns retained when building built-in chat provider payloads.",
+      "order": 8
+    },
+    "chatToolContentCharLimit": {
+      "type": "integer",
+      "default": 2000,
+      "title": "Chat Tool Content Limit",
+      "description": "Maximum characters retained from each tool result message before truncation in provider payloads.",
+      "order": 9
     }
   }
 }

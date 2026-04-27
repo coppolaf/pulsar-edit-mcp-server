@@ -29,9 +29,14 @@ test('model client surfaces HTTP status and provider error message', async () =>
       statusText: '',
       body: { error: { message: 'Rate limit exceeded.' } }
     }),
-    getConfig: () => ({ apiEndpointPrefix: 'https://api.example.com', apiKey: 'secret' }),
-    sleepImpl: async () => {},
-    maxRetries: 0
+    getConfig: () => ({
+      apiEndpointPrefix: 'https://api.example.com',
+      apiKey: 'secret',
+      chatMaxRetries: 0,
+      chatRetryBaseDelayMs: 750,
+      providerTimeoutMs: 0
+    }),
+    sleepImpl: async () => {}
   });
 
   await assert.rejects(
@@ -68,9 +73,14 @@ test('model client retries retryable responses before succeeding', async () => {
         }
       });
     },
-    getConfig: () => ({ apiEndpointPrefix: 'https://api.example.com', apiKey: 'secret' }),
-    sleepImpl: async (ms) => { delays.push(ms); },
-    maxRetries: 1
+    getConfig: () => ({
+      apiEndpointPrefix: 'https://api.example.com',
+      apiKey: 'secret',
+      chatMaxRetries: 1,
+      chatRetryBaseDelayMs: 750,
+      providerTimeoutMs: 0
+    }),
+    sleepImpl: async (ms) => { delays.push(ms); }
   });
 
   const result = await client.createChatCompletion({ model: 'gpt-test', messages: [], tools: [] });
@@ -78,4 +88,27 @@ test('model client retries retryable responses before succeeding', async () => {
   assert.equal(attempts, 2);
   assert.deepEqual(delays, [0]);
   assert.equal(result.choices[0].message.content, 'ok');
+});
+
+test('model client routes completions through scheduler when provided', async () => {
+  const calls = [];
+  const client = createModelClient({
+    fetchImpl: async () => createJsonResponse({ body: { choices: [{ message: { role: 'assistant', content: 'ok' } }] } }),
+    getConfig: () => ({
+      apiEndpointPrefix: 'https://api.example.com',
+      apiKey: 'secret',
+      chatMaxRetries: 0,
+      chatRetryBaseDelayMs: 750,
+      providerTimeoutMs: 0
+    }),
+    scheduler: {
+      enqueue(task) {
+        calls.push('enqueue');
+        return task();
+      }
+    }
+  });
+
+  await client.createChatCompletion({ model: 'gpt-test', messages: [], tools: [] });
+  assert.deepEqual(calls, ['enqueue']);
 });
