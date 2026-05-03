@@ -88,3 +88,78 @@ test('orchestrator resolves tool calls and renders assistant reply', async () =>
   assert.deepEqual(thinkingEvents, [true, false]);
   assert.equal(rendered.length, 2);
 });
+
+
+test('orchestrator short-circuits after apply-proposal tool result', async () => {
+  const state = createConversationState({ systemPrompt: 'system prompt' });
+  const rendered = [];
+  const chatDisplay = {
+    appendChild(node) {
+      rendered.push(node);
+    }
+  };
+
+  global.document = {
+    createElement() {
+      return {
+        classList: { add() {} },
+        querySelectorAll() { return []; },
+        scrollIntoView() {}
+      };
+    }
+  };
+
+  const marked = { parse: (text) => `<p>${text}</p>` };
+  const DOMPurify = { sanitize: (html) => html };
+
+  let completions = 0;
+  const modelClient = {
+    async createChatCompletion() {
+      completions += 1;
+      return {
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: '',
+            tool_calls: [{
+              id: 'tool-apply-1',
+              function: {
+                name: 'apply-proposal',
+                arguments: JSON.stringify({ proposalId: 'proposal-1' })
+              }
+            }]
+          }
+        }]
+      };
+    }
+  };
+
+  const toolCatalog = { async getTools() { return []; } };
+  const orchestrator = createChatOrchestrator({
+    conversationState: state,
+    modelClient,
+    toolCatalog
+  });
+
+  const result = await orchestrator.handleSendMessage({
+    chatObj: { thinkingOnOff() {} },
+    chatDisplay,
+    marked,
+    DOMPurify,
+    message: 'apply proposal-1',
+    model: 'gpt-4o',
+    mcpClient: {
+      async callTool() {
+        return { content: [{ type: 'text', text: 'Proposal proposal-1 applied.' }] };
+      }
+    }
+  });
+
+  assert.equal(result, 'Proposal proposal-1 applied.');
+  assert.equal(completions, 1);
+  assert.equal(rendered.length, 2);
+  assert.deepEqual(
+    state.getMessages().map((message) => message.role),
+    ['system', 'user', 'assistant', 'tool', 'assistant']
+  );
+});
